@@ -1,0 +1,320 @@
+---
+title: "Final Project Code"
+author: "Helen Liang, Ivy Zhao, Xiaotong Zhao"
+date: "05/10/2024"
+output: pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_knit$set(root.dir = "/Users/hl0616/Library/Mobile Documents/com~apple~CloudDocs/NYU/Spring 2024/GPH-GU-2353 Regression I/Final Project/bike_sharing_dataset", echo = TRUE)
+```
+
+# Predicting Total Daily Rental Bike Demands
+
+The `bike` dataset contains information such as total daily rental bike count from the Capital bikeshare system spanning from 2011 to 2012. This dataset contains 731 observations and 16 variables. However, we're only using the following 9 of those 16 variables in our study: 
+
+* `yr`: year
+  * 0 = 2011
+  * 1 = 2012
+* `season`: season
+  * 1 = spring
+  * 2 = summer
+  * 3 = fall
+  * 4 = winter
+* `holiday`: whether the day is a holiday or not
+  * 0 = no
+  * 1 = yes
+* `workingday`: type of day
+  * 0 = no
+  * 1 = yes
+* `weathersit`: weather of the day
+  * 1 = clear, few clouds, partly cloudy, partly cloudy
+  * 2 = mist + cloudy, mist + broken clouds, mist + few clouds, mist
+  * 3 = light Snow, light rain + thunderstorm + scattered clouds, light rain + scattered clouds
+  * 4 = heavy rain + ice pallets + thunderstorm + mist, snow + fog
+* `temp`: normalized temperature
+* `atemp`: normalized feeling temperature
+* `hum`: normalized humidity
+* `windspeed`: normalized wind speed
+* `cnt`: count of total rental bikes including both casual and registered
+
+# Load Data
+```{r}
+bike <- read.csv("day.csv") #load dataset
+
+head(bike) #view the first 6 rows
+nrow(bike) #number of observations
+ncol(bike) #number of variables
+sum(is.na(bike)) #check for missing values
+sapply(bike, class) #check for variable types
+```
+
+# Data Preparation
+```{r}
+library(dplyr)
+library(tidyr)
+
+bikeDf <- bike %>% 
+  select(yr, season, holiday, workingday, weathersit, temp, atemp, hum, windspeed, cnt)
+
+head(bikeDf) #view the first 6 rows
+nrow(bikeDf) #number of observations
+ncol(bikeDf) #number of variables
+sum(is.na(bikeDf)) #check for missing values
+sapply(bikeDf, class) #check for variable types
+```
+
+# Univariable Analysis
+```{r}
+#yr
+yr_counts <- table(bikeDf$yr)
+yr_percentages <- prop.table(yr_counts) * 100
+yr_summary <- data.frame(yr = names(yr_counts),
+Count = as.numeric(yr_counts), Percentage = yr_percentages)
+print(yr_summary)
+
+#season
+season_counts <- table(bikeDf$season)
+season_percentages <- prop.table(season_counts) * 100
+season_summary <- data.frame(Season = names(season_counts),
+Count = as.numeric(season_counts), Percentage = season_percentages)
+print(season_summary)
+
+#holiday
+holiday_counts <- table(bikeDf$holiday)
+holiday_percentages <- prop.table(holiday_counts) * 100
+holiday_summary <- data.frame(holiday = names(holiday_counts),
+Count = as.numeric(holiday_counts), Percentage = holiday_percentages)
+print(holiday_summary)
+
+#workingday
+workingday_counts <- table(bikeDf$workingday)
+workingday_percentages <- prop.table(workingday_counts) * 100
+workingday_summary <- data.frame(workingday = names(workingday_counts),
+Count = as.numeric(workingday_counts), Percentage = workingday_percentages)
+print(workingday_summary)
+
+#weathersit
+weathersit_counts <- table(bikeDf$weathersit)
+weathersit_percentages <- prop.table(weathersit_counts) * 100
+weathersit_summary <- data.frame(weathersit = names(weathersit_counts),
+Count = as.numeric(weathersit_counts), Percentage = weathersit_percentages)
+print(weathersit_summary)
+
+sd <- sapply(bikeDf[, c("cnt", "temp", "atemp", "hum", "windspeed")], sd)
+print(sd)
+
+summary(bikeDf)
+```
+
+
+
+# Density Plots
+```{r}
+library(ggplot2)
+
+#temp
+ggplot(bikeDf, aes(x = temp)) + 
+  geom_density() +
+  labs(title = "", 
+       x = "Normalized Temperature",
+       y = "Density")
+
+#atemp
+ggplot(bikeDf, aes(x = atemp)) +
+  geom_density() +
+  labs(title = "",
+       x = "Normalized Feeling Temperature",
+       y = "Density")
+
+#hum
+ggplot(bikeDf, aes(x = hum)) +
+  geom_density() +
+  labs(title = "",
+       x = "Normalized Humidity",
+       y = "Density")
+
+#windspeed
+ggplot(bikeDf, aes(x = windspeed)) +
+  geom_density() +
+  labs(title = "",
+       x = "Normalized Wind Speed",
+       y = "Density")
+
+#cnt
+ggplot(bikeDf, aes(x = cnt)) + 
+  geom_density() +
+  labs(title = "", 
+       x = "Total Daily Rental Bike Count", 
+       y = "Density")
+```
+
+# Initial Model (everything included)
+```{r}
+library(faraway)
+
+#initial model (everything included)
+initial_model <- lm(cnt ~., data = bikeDf)
+summary(initial_model)
+
+#residual vs fitted plot for initial model
+plot(fitted(initial_model), rstandard(initial_model), 
+     xlab = "Fitted", ylab = "Standardized Residuals")
+abline(h = 0, col = "red")
+
+#quantile-quantile plot for initial model
+qqnorm(rstandard(initial_model), main = "")
+abline(0, 1, col = "red")
+
+#histogram for initial model
+hist(rstandard(initial_model), main = "", xlab = "Standardized Residuals")
+
+#########
+
+#check for leverages
+hatv <- hatvalues(initial_model)
+leverages <- hatv[hatv > 2 * mean(hatv)]
+halfnorm(hatv, nlab = 1, ylab = "Leverages") #595
+
+#check for outliers
+stud <- rstudent(initial_model)
+stud[which.max(abs(stud))] #668
+p <- 5
+n <- nrow(bikeDf)
+qt(1 - 0.05 / (n * 2), n - p - 1) #668 is not an outlier
+outliers <- which(abs(stud) > qt(1 - 0.05 / (n * 2), n - p - 1))
+outliers #668, 669
+
+#check for cook's distances
+cook <- cooks.distance(initial_model)
+influential <- cook[which(cook > 0.5)]
+influential #595
+halfnorm(cook, nlab = 1, ylab = "Cook's Distances") #595
+
+#remove leverages, outliers, influential points
+all_indices <- unique(c(leverages, outliers, influential))
+bikeDf_new <- bikeDf[-all_indices, ]
+```
+
+
+# Model 1 (leverages/outliers/influential points removed)
+```{r}
+#model1
+model1 <- lm(cnt ~., data = bikeDf_new)
+summary(model1)
+vif(model1) #vif for model1
+```
+
+# Model 2 (with atemp removed)
+```{r}
+#model2 (atemp removed)
+model2 <- lm(cnt ~ yr + season + holiday + workingday + weathersit + temp + hum + windspeed, data = bikeDf_new)
+summary(model2)
+vif(model2) #vif for model2
+
+#residual vs fitted plot for initial model
+plot(fitted(model2), rstandard(model2), 
+     xlab = "Fitted", ylab = "Standardized Residuals")
+abline(h = 0, col = "red")
+
+#quantile-quantile plot for initial model
+qqnorm(rstandard(model2), main = "")
+abline(0, 1, col = "red")
+
+#histogram for initial model
+hist(rstandard(model2), main = "", xlab = "Standardized Residuals")
+
+#use AIC to check if model can be improved
+library(leaps)
+b <- regsubsets(cnt ~ yr + season + holiday + workingday + weathersit + temp + hum + windspeed, data = bikeDf_new)
+
+rs <- summary(b)
+rs$which
+a <- rs$rss
+n <- nrow(bikeDf)
+p <- 2:9
+AIC <- n * log(a / n) + 2 * p
+AIC
+plot(AIC ~ I(p - 1), xlab = "Number of Predictors", ylab = "AIC") #keep model2
+```
+
+# Choosing Interaction Terms
+```{r, echo = TRUE, results = "hide"}
+#check for all 28 interaction term combinations
+predictors <- c("yr", "season", "holiday", "workingday", "weathersit", "temp", "hum", "windspeed")
+interaction_terms <- combn(predictors, 2, simplify = FALSE)
+model_summaries <- list()
+for(i in seq_along(interaction_terms)) {
+  interaction_str <- paste(interaction_terms[[i]], collapse = "*")
+  formula_str <- paste("cnt ~", paste(predictors, collapse = " + "), "+", interaction_str)
+  model <- lm(as.formula(formula_str), data = bikeDf_new)
+  model_summaries[[i]] <- summary(model)
+  print(paste("Model", i, "with interaction", interaction_str))
+  print(summary(model)$coefficients)
+}
+adj_r_squared <- sapply(model_summaries, function(x) x$adj.r.squared)
+print(adj_r_squared)
+
+anova_p_values <- numeric(length(interaction_terms))
+for(i in seq_along(interaction_terms)) {
+  interaction_str <- paste(interaction_terms[[i]], collapse = ":")
+  formula_str <- paste("cnt ~", paste(predictors, collapse = " + "), "+", interaction_str)
+  interaction_model <- lm(as.formula(formula_str), data = bikeDf_new)
+  model_comparison <- anova(model2, interaction_model)
+  anova_p_values[i] <- model_comparison$"Pr(>F)"[2]
+  
+  print(paste("Model with interaction", interaction_str))
+  print(model_comparison)
+}
+
+names(anova_p_values) <- sapply(interaction_terms, function(x) paste(x, collapse = ":"))
+print(anova_p_values)
+```
+
+# Model 3 (with 11 interaction terms)
+```{r}
+#significant interaction terms
+
+#yr*season
+#yr*workingday
+#yr*weathersit
+#yr*temp
+#season*temp
+#season*hum
+#holiday*temp
+#workingday*temp
+#workingday*windspeed
+#weathersit*hum
+#weathersit*windspeed
+#temp*windspeed
+
+#model3
+model3 <- lm(cnt ~ yr + season + holiday + workingday + weathersit + temp + hum + windspeed + yr*season + yr*workingday + yr*weathersit + yr*temp + season*temp + season*hum + holiday*temp + workingday*temp + workingday*windspeed + weathersit*hum + weathersit*windspeed + temp*windspeed, data = bikeDf_new)
+summary(model3)
+```
+
+# Transformed Model 3 (with 12 interaction terms)
+```{r}
+library(MASS)
+
+obj <- boxcox(model3, plotit = TRUE)
+lambda <- obj$x[which.max(obj$y)]
+lambda #0.7070707
+
+#transformed model 3
+trans <- (bikeDf_new$cnt^lambda)
+model3.trans <- lm(trans ~ yr + season + holiday + workingday + weathersit + temp + hum + windspeed + yr*season + yr*workingday + yr*weathersit + yr*temp + season*temp + season*hum + holiday*temp + workingday*temp + workingday*windspeed + weathersit*hum + weathersit*windspeed + temp*windspeed, data = bikeDf_new)
+summary(model3.trans)
+
+#residual vs fitted plot for model3.trans
+plot(fitted(model3.trans), rstandard(model3.trans), 
+     xlab = "Fitted", ylab = "Standardized Residuals")
+abline(h = 0, col = "red")
+
+#quantile-quantile plot for model3.trans
+qqnorm(rstandard(model3.trans), main = "")
+abline(0, 1, col = "red")
+
+#histogram for model3.trans
+hist(rstandard(model3.trans), main = "", xlab = "Standardized Residuals")
+```
