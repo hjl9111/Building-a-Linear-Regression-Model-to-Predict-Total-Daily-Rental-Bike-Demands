@@ -2,6 +2,8 @@
 
 **Group Members: Helen Liang, Ivy Zhao, Xiaotong Zhao**
 
+**Task: Regression Analysis**
+
 **Topic: Linear Regression, Rental Bike Demands Prediction**
 
 **Language: R**
